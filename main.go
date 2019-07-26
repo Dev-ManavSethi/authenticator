@@ -306,19 +306,18 @@ func All(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 		} else {
 
-			for apikey, company := range Companies {
-				fmt.Fprintln(w, apikey, " : ", company.Name, " ", company.ID, " ")
-				for index, user := range company.Users {
-					fmt.Fprintln(w, index+1, " ", user.Name, " ", user.ID, " ", user.Email, " ", user.EmailVerified, " ", user.Phone, " ", user.PhoneVerified, " ", user.Address.Address1, " ", user.Address.Address2, " ", user.Address.City, " ", user.Address.State, " ", user.Address.Country)
-					fmt.Fprintln(w, "---------------------------------------------------------------------------------------------------")
+			var Companies []Company
+			for _, company := range Companies {
+			
+				Companies = append(Companies, company)
+			}
 
-				}
-
-				fmt.Fprintln(w, "")
-				fmt.Fprintln(w, "#####################################################################################################################")
-				fmt.Fprintln(w, "#####################################################################################################################")
-
-				fmt.Fprintln(w, "")
+			jsonBytes, err := json.Marshal(Companies)
+			if err!=nil{
+				w.WriteHeader(http.StatusInternalServerError)
+			} else{
+				fmt.Fprintf(w, "", string(jsonBytes))
+				w.WriteHeader(http.StatusOK)
 			}
 		}
 
