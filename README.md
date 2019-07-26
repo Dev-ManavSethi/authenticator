@@ -1,2 +1,2 @@
 # Authenticator
-visit global-authenticator.herokuapp.com for complete details
+visit https://global-authenticator.herokuapp.com for complete details
