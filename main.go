@@ -511,7 +511,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 		_, ok := Companies[apikey]
 		if !ok {
-
+			fmt.Fprint(w, "Could not find company of given apikey: " + apikey)
 			w.WriteHeader(http.StatusUnauthorized)
 		}
 		if ok {
