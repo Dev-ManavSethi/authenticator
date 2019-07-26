@@ -105,18 +105,137 @@ func main() {
 	mux.HandleFunc("/signup", Signup)
 	//name, email, phone, password, fingerprint, iris, email_verified, phone_verified, address1, address2, city, state, country
 
-	mux.HandleFunc("/email_login", EmailLogin)                  //email login
 	mux.HandleFunc("/email_verify_request", EmailVerifyRequest) //email verify
 	mux.HandleFunc("/email_verify_code", EmailVerifyCode)
 
-	mux.HandleFunc("/phone_request_code", PhoneVerify)   //phone code request
-	mux.HandleFunc("/phone_validate_code", PhoneVerify2) //phone code validation
+	mux.HandleFunc("/phone_request_code", PhoneVerifyRequest) //phone code request
+	mux.HandleFunc("/phone_validate_code", PhoneVerifyCode)   //phone code validation
+
+	mux.HandleFunc("/email_login", EmailLogin) //email login
+	mux.HandleFunc("/phone_login", PhoneLogin) //email login
 
 	mux.HandleFunc("/company", CompanyData)
+	mux.HandleFunc("/user", UserData)
 	mux.HandleFunc("/all", All) //get all db data (for admin)
 
 	log.Println("Listening on " + os.Getenv("PORT"))
 	log.Fatalln(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
+}
+
+func UserData(w http.ResponseWriter, r *http.Request) {
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+	} else {
+
+		apikey := r.FormValue("apikey")
+
+		_, ok := Companies[apikey]
+
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if ok {
+
+			// name := r.FormValue("name")
+			// id := r.FormValue("id")
+			phone := r.FormValue("phone")
+			// email := r.FormValue("email")
+
+			if phone != "" {
+
+				phone_int, err := strconv.Atoi(phone)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+				} else {
+
+					Company := Companies[apikey]
+					var UserFound bool = false
+					var User User
+
+					for _, user := range Company.Users {
+						if user.Phone == int64(phone_int) {
+							UserFound = true
+							User = user
+						}
+					}
+
+					if UserFound {
+						jsonBytes, err := json.Marshal(User)
+						if err != nil {
+							w.WriteHeader(http.StatusInternalServerError)
+						} else {
+							w.WriteHeader(http.StatusFound)
+							fmt.Fprintln(w, string(jsonBytes))
+						}
+
+					}
+					if !UserFound {
+						w.WriteHeader(http.StatusNotFound)
+					}
+
+				}
+
+			}
+		}
+	}
+}
+
+func PhoneLogin(w http.ResponseWriter, r *http.Request) {
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+	} else {
+
+		apikey := r.FormValue("apikey")
+
+		_, ok := Companies[apikey]
+
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if ok {
+
+			phone := r.FormValue("phone")
+			phone_int, err := strconv.Atoi(phone)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			} else {
+
+				Company := Companies[apikey]
+				var UserFound bool = false
+				var User User
+
+				for _, user := range Company.Users {
+					if user.Phone == int64(phone_int) {
+						UserFound = true
+						User = user
+					}
+				}
+
+				if UserFound {
+					jsonBytes, err := json.Marshal(User)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+					} else {
+						w.WriteHeader(http.StatusFound)
+						fmt.Fprintln(w, string(jsonBytes))
+					}
+
+				}
+				if !UserFound {
+					w.WriteHeader(http.StatusNotFound)
+				}
+
+			}
+		}
+	}
 }
 
 func CompanyData(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +261,7 @@ func CompanyData(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 
-				fmt.Fprintf(w, "application/json", string(jsonByte))
+				fmt.Fprintln(w, string(jsonByte))
 				w.WriteHeader(http.StatusOK)
 			}
 		}
@@ -316,8 +435,18 @@ func EmailLogin(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 					if err == nil {
-						w.WriteHeader(http.StatusAccepted)
-						break
+
+						jsonBytes, err := json.Marshal(user)
+						if err != nil {
+							w.WriteHeader(http.StatusInternalServerError)
+							break
+						} else {
+
+							w.WriteHeader(http.StatusFound)
+							fmt.Fprintln(w, string(jsonBytes))
+							break
+						}
+
 					}
 					if err != nil {
 
@@ -390,7 +519,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				phone_int, err := strconv.Atoi(phone)
 				if err != nil {
 				}
-				Company.Users = append(Company.Users, User{
+				User := User{
 					Name:     name,
 					Email:    email,
 					ID:       id,
@@ -405,7 +534,9 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 					Phone:         int64(phone_int),
 					PhoneVerified: phoneVerified,
 					EmailVerified: EmailVerified,
-				})
+				}
+
+				Company.Users = append(Company.Users, User)
 
 				GlobalMutex.Lock()
 				Companies[apikey] = Company
@@ -421,7 +552,16 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 					return
 				} else {
 
-					w.WriteHeader(http.StatusCreated)
+					jsonBytes, err := json.Marshal(User)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+
+					} else {
+
+						w.WriteHeader(http.StatusCreated)
+						fmt.Fprintln(w, string(jsonBytes))
+					}
+
 				}
 
 			}
@@ -429,7 +569,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PhoneVerify(w http.ResponseWriter, r *http.Request) {
+func PhoneVerifyRequest(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 
@@ -496,7 +636,7 @@ func PhoneVerify(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func PhoneVerify2(w http.ResponseWriter, r *http.Request) {
+func PhoneVerifyCode(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		w.WriteHeader(http.StatusBadRequest)
