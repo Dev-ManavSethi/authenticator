@@ -382,12 +382,23 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			response := `{apikey:` + hashString + `,name:` + name + `,company_id:` + id + `}`
+			type AllResponse struct{
+				APIkey string `json:"apikey"`
+				Name string `json:"name"`
+				ID string `json:"id"`
+			}
 
-			fmt.Fprintln(w, response)
+			var a AllResponse
+			a.APIkey = hashString
+			a.Name= name
+			a.ID = id
 
+			//response := `{apikey:` + hashString + `,name:` + name + `,company_id:` + id + `}`
+
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 
+			json.NewEncoder(w).Encode(a)
 			//save to db file
 
 		}
