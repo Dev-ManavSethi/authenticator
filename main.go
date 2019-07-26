@@ -322,7 +322,7 @@ func All(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-}
+
 
 func Home(w http.ResponseWriter, r *http.Request) {
 
@@ -480,10 +480,7 @@ func EmailLogin(w http.ResponseWriter, r *http.Request) {
 
 func Signup(w http.ResponseWriter, r *http.Request) {
 
-	if r.Method == http.MethodGet {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+
 
 	err := r.ParseForm()
 	if err != nil {
@@ -561,15 +558,10 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 					return
 				} else {
 
-					jsonBytes, err := json.Marshal(User)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-
-					} else {
-
+					w.Header().Set("Content-Type", "application/json")
+				
 						w.WriteHeader(http.StatusCreated)
-						fmt.Fprintln(w, string(jsonBytes))
-					}
+						json.NewEncoder(w).Encode(User)					
 
 				}
 
