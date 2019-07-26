@@ -486,15 +486,19 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("Error parsing form ", err)
 		w.WriteHeader(http.StatusInternalServerError)
+
 	} else {
+
+
+		apikey := r.FormValue("apikey")
 
 		email := r.FormValue("email")
 		pass := r.FormValue("password")
 		name := r.FormValue("name")
 		phone := r.FormValue("phone")
 
-		phoneVerified := r.FormValue("phone_verified") == "true"
-		EmailVerified := r.FormValue("email_verified") == "true"
+		// phoneVerified := r.FormValue("phone_verified") == "true"
+		// EmailVerified := r.FormValue("email_verified") == "true"
 
 		add1 := r.FormValue("address1")
 		add2 := r.FormValue("address2")
@@ -504,7 +508,6 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		uuid := uuid.NewV4()
 
 		id := uuid.String()
-		apikey := r.FormValue("apikey")
 
 		_, ok := Companies[apikey]
 		if !ok {
@@ -516,6 +519,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 			Company := Companies[apikey]
 
 			HashedPass, err := bcrypt.GenerateFromPassword([]byte(pass), 10)
+
 			if err != nil {
 				log.Println("Error craeting hashed password", err)
 
@@ -525,7 +529,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				phone_int, err := strconv.Atoi(phone)
 				if err != nil {
 				}
-				User := User{
+				Userr := User{
 					Name:     name,
 					Email:    email,
 					ID:       id,
@@ -538,11 +542,10 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 						State:    state,
 					},
 					Phone:         int64(phone_int),
-					PhoneVerified: phoneVerified,
-					EmailVerified: EmailVerified,
+					
 				}
 
-				Company.Users = append(Company.Users, User)
+				Company.Users = append(Company.Users, Userr)
 
 				GlobalMutex.Lock()
 				Companies[apikey] = Company
@@ -555,13 +558,13 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				if err4 != nil {
 					log.Println(err4)
 					w.WriteHeader(http.StatusInternalServerError)
-					return
+					
 				} else {
 
 					w.Header().Set("Content-Type", "application/json")
 				
 						w.WriteHeader(http.StatusCreated)
-						json.NewEncoder(w).Encode(User)					
+						json.NewEncoder(w).Encode(Userr)					
 
 				}
 
