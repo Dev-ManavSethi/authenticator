@@ -396,7 +396,6 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 				phone_int, err := strconv.Atoi(phone)
 				if err != nil {
-					phone_int := int64(0)
 				}
 				Company.Users = append(Company.Users, User{
 					Name:     name,
