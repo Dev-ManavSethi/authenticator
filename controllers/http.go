@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/Dev-ManavSethi/authenticator/models"
 )
 
 func GenAPIkey(w http.ResponseWriter, r *http.Request) {
@@ -20,18 +22,19 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 
 	privatekey := new(dsa.PrivateKey)
 	privatekey.PublicKey.Parameters = *params
-	
+
 	dsa.GenerateKey(privatekey, rand.Reader) // this generates a public & private key pair
 
 	var pubkey dsa.PublicKey
 	pubkey = privatekey.PublicKey
 
-	fmt.Println("Private Key :")
-	fmt.Printf("%x \n", privatekey)
+	fmt.Println("Private Key generated")
+	//fmt.Printf("%x \n", privatekey)
 
-	fmt.Println("Public Key :")
-	fmt.Printf("%x \n", pubkey)
+	fmt.Println("Public Key generated")
+	//fmt.Printf("%x \n", pubkey)
 
+	models.Keys[privatekey] = models.User{}
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
