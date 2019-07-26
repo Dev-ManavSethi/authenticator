@@ -115,8 +115,8 @@ func main() {
 	mux.HandleFunc("/phone_login", PhoneLogin) //email login
 
 	mux.HandleFunc("/company", CompanyData) //get company data
-	mux.HandleFunc("/user", UserData) //get user data
-	mux.HandleFunc("/all", All) //get all db data (for admin)
+	mux.HandleFunc("/user", UserData)       //get user data
+	mux.HandleFunc("/all", All)             //get all db data (for admin)
 
 	log.Println("Listening on " + os.Getenv("PORT"))
 	log.Fatalln(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
@@ -511,6 +511,17 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		if ok {
 
 			Company := Companies[apikey]
+			phone_int, err := strconv.Atoi(phone)
+			if err != nil {
+			}
+
+			for _, user := range Company.Users {
+
+				if user.Email == email || user.Phone == int64(phone_int) {
+					w.WriteHeader(http.StatusAlreadyReported)
+					return
+				}
+			}
 
 			HashedPass, err := bcrypt.GenerateFromPassword([]byte(pass), 10)
 
@@ -520,9 +531,6 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 
-				phone_int, err := strconv.Atoi(phone)
-				if err != nil {
-				}
 				Userr := User{
 					Name:     name,
 					Email:    email,
