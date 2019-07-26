@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/joho/godotenv"
@@ -166,7 +167,7 @@ func EmailVerifyRequest(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 
-		email := r.FormValue("email")
+		// email := r.FormValue("email")
 		apikey := r.FormValue("apikey")
 
 		_, ok := Companies[apikey]
@@ -268,12 +269,12 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Println("Err saving to db", err)
 				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 
-			log.Println("API key generated for company: " + name + " , id : " + id)
-			fmt.Fprintln(w, "API key: "+hashString)
-			fmt.Fprintln(w, "Name: "+name)
-			fmt.Fprintln(w, "ID: "+id)
+			response := `{apikey:` + hashString + `name:` + name + `company_id:` + id + `}`
+
+			fmt.Fprintf(w, "application/json", response)
 
 			w.WriteHeader(http.StatusCreated)
 
@@ -393,6 +394,10 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 
+				phone_int, err := strconv.Atoi(phone)
+				if err != nil {
+					phone_int := int64(0)
+				}
 				Company.Users = append(Company.Users, User{
 					Name:     name,
 					Email:    email,
@@ -405,6 +410,9 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 						Country:  country,
 						State:    state,
 					},
+					Phone:         int64(phone_int),
+					PhoneVerified: phoneVerified,
+					EmailVerified: EmailVerified,
 				})
 
 				GlobalMutex.Lock()
@@ -414,12 +422,15 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				log.Println("User signed up for company: " + Companies[apikey].Name)
 				//save map to db
 
-				err := SaveToDB(Companies)
-				if err != nil {
-					log.Println(err)
-				}
+				err4 := SaveToDB(Companies)
+				if err4 != nil {
+					log.Println(err4)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				} else {
 
-				w.WriteHeader(http.StatusCreated)
+					w.WriteHeader(http.StatusCreated)
+				}
 
 			}
 		}

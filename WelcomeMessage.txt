@@ -38,4 +38,11 @@ Success Response status: 200
 
 5. Fingerprint Verify: COMING SOON
 
-5. Iris Verify: COMING SOON
+6. Iris Verify: COMING SOON
+
+
+7. To get company data:
+POST to /company
+Parameters: apikey*
+Response: All data about the company
+SUccess Response status code : 200
