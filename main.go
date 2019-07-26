@@ -29,28 +29,28 @@ var (
 
 type (
 	Company struct {
-		Name   string
-		ID     string
-		APIkey string
-		Users  []User
+		Name   string `json:"name"`
+		ID     string `json:"id"`
+		APIkey string `json:"api_key"`
+		Users  []User `json:"users"`
 	}
 
 	User struct {
-		Name          string
-		ID            string
-		Password      []byte
-		Email         string
-		Phone         int64
-		PhoneVerified bool
-		EmailVerified bool
-		Address       Address
+		Name          string  `json:"name"`
+		ID            string  `json:"id"`
+		Password      []byte  `json:"password"`
+		Email         string  `json:"email"`
+		Phone         int64   `json:"phone"`
+		PhoneVerified bool    `json:"phone_verified"`
+		EmailVerified bool    `json:"email_verified"`
+		Address       Address `json:"address"`
 	}
 	Address struct {
-		Address1 string
-		Address2 string
-		City     string
-		State    string
-		Country  string
+		Address1 string `json:"address1"`
+		Address2 string `json:"address2"`
+		City     string `json:"city"`
+		State    string `json:"state"`
+		Country  string `json:"country"`
 	}
 
 	NexmoReqResponse struct {
@@ -100,13 +100,13 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", Home)
 
-	mux.HandleFunc("/generateAPIkey", GenAPIkey)
+	mux.HandleFunc("/generateAPIkey", GenAPIkey) //signup for company
 
 	mux.HandleFunc("/signup", Signup)
 	//name, email, phone, password, fingerprint, iris, email_verified, phone_verified, address1, address2, city, state, country
 
-	mux.HandleFunc("/email_verify_request", EmailVerifyRequest) //email verify
-	mux.HandleFunc("/email_verify_code", EmailVerifyCode)
+	mux.HandleFunc("/email_verify_request", EmailVerifyRequest) //email verify //remaining
+	mux.HandleFunc("/email_verify_code", EmailVerifyCode)       //remaining
 
 	mux.HandleFunc("/phone_request_code", PhoneVerifyRequest) //phone code request
 	mux.HandleFunc("/phone_validate_code", PhoneVerifyCode)   //phone code validation
@@ -114,8 +114,8 @@ func main() {
 	mux.HandleFunc("/email_login", EmailLogin) //email login
 	mux.HandleFunc("/phone_login", PhoneLogin) //email login
 
-	mux.HandleFunc("/company", CompanyData)
-	mux.HandleFunc("/user", UserData)
+	mux.HandleFunc("/company", CompanyData) //get company data
+	mux.HandleFunc("/user", UserData) //get user data
 	mux.HandleFunc("/all", All) //get all db data (for admin)
 
 	log.Println("Listening on " + os.Getenv("PORT"))
@@ -306,23 +306,20 @@ func All(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 		} else {
 
-			var Companies []Company
+			var Companiess []Company
 			for _, company := range Companies {
-			
-				Companies = append(Companies, company)
+
+				Companiess = append(Companiess, company)
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(Companies)
-		
-		
-			}
-		}
+			json.NewEncoder(w).Encode(Companiess)
 
+		}
 	}
 
-
+}
 
 func Home(w http.ResponseWriter, r *http.Request) {
 
@@ -382,15 +379,15 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			type AllResponse struct{
+			type AllResponse struct {
 				APIkey string `json:"apikey"`
-				Name string `json:"name"`
-				ID string `json:"id"`
+				Name   string `json:"name"`
+				ID     string `json:"id"`
 			}
 
 			var a AllResponse
 			a.APIkey = hashString
-			a.Name= name
+			a.Name = name
 			a.ID = id
 
 			//response := `{apikey:` + hashString + `,name:` + name + `,company_id:` + id + `}`
@@ -480,15 +477,12 @@ func EmailLogin(w http.ResponseWriter, r *http.Request) {
 
 func Signup(w http.ResponseWriter, r *http.Request) {
 
-
-
 	err := r.ParseForm()
 	if err != nil {
 		log.Println("Error parsing form ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 
 	} else {
-
 
 		apikey := r.FormValue("apikey")
 
@@ -511,7 +505,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 		_, ok := Companies[apikey]
 		if !ok {
-			fmt.Fprint(w, "Could not find company of given apikey: " + apikey)
+			fmt.Fprint(w, "Could not find company of given apikey: "+apikey)
 			w.WriteHeader(http.StatusUnauthorized)
 		}
 		if ok {
@@ -541,8 +535,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 						Country:  country,
 						State:    state,
 					},
-					Phone:         int64(phone_int),
-					
+					Phone: int64(phone_int),
 				}
 
 				Company.Users = append(Company.Users, Userr)
@@ -558,13 +551,13 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				if err4 != nil {
 					log.Println(err4)
 					w.WriteHeader(http.StatusInternalServerError)
-					
+
 				} else {
 
 					w.Header().Set("Content-Type", "application/json")
-				
-						w.WriteHeader(http.StatusCreated)
-						json.NewEncoder(w).Encode(Userr)					
+
+					w.WriteHeader(http.StatusCreated)
+					json.NewEncoder(w).Encode(Userr)
 
 				}
 
