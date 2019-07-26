@@ -137,21 +137,14 @@ func CompanyData(w http.ResponseWriter, r *http.Request) {
 
 			Company := Companies[apikey]
 
-			fmt.Fprintln(w, Company.Name)
-			fmt.Fprintln(w, Company.ID)
+			jsonByte, err := json.Marshal(Company)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			} else {
 
-			fmt.Fprintln(w, Company.APIkey)
-
-			fmt.Fprintln(w, "Users: ")
-
-			for index, user := range Company.Users {
-				fmt.Fprintln(w, index+1, " ", user.Name, " ", user.ID, " ", user.Email, " ", user.EmailVerified, " ", user.Phone, " ", user.PhoneVerified, " ", user.Address.Address1, " ", user.Address.Address2, " ", user.Address.City, " ", user.Address.State, " ", user.Address.Country)
-				fmt.Fprintln(w, "")
-				fmt.Fprintln(w, "---------------------------------------------------------------------------------------------------")
-				fmt.Fprintln(w, "")
+				fmt.Fprintf(w, "application/json", string(jsonByte))
+				w.WriteHeader(http.StatusOK)
 			}
-
-			w.WriteHeader(http.StatusOK)
 		}
 	}
 }
