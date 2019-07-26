@@ -35,10 +35,21 @@ type (
 	}
 
 	User struct {
-		Name     string
-		ID       string
-		Password []byte
-		Email    string
+		Name          string
+		ID            string
+		Password      []byte
+		Email         string
+		Phone         int64
+		PhoneVerified bool
+		EmailVerified bool
+		Address       Address
+	}
+	Address struct {
+		Address1 string
+		Address2 string
+		City     string
+		State    string
+		Country  string
 	}
 
 	NexmoReqResponse struct {
@@ -87,17 +98,89 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", Home)
-	mux.HandleFunc("/generateAPIkey", GenAPIkey)
-	mux.HandleFunc("/signup", Signup)
-	mux.HandleFunc("/login", Login)
-	mux.HandleFunc("/verifyPhone", Verify)
-	mux.HandleFunc("/verifyPhone2", Verify2)
 
-	mux.HandleFunc("/all", All)
+	mux.HandleFunc("/generateAPIkey", GenAPIkey)
+
+	mux.HandleFunc("/signup", Signup)
+	//name, email, phone, password, fingerprint, iris, email_verified, phone_verified, address1, address2, city, state, country
+
+	mux.HandleFunc("/email_login", EmailLogin)                  //email login
+	mux.HandleFunc("/email_verify_request", EmailVerifyRequest) //email verify
+	mux.HandleFunc("/email_verify_code", EmailVerifyCode)
+
+	mux.HandleFunc("/phone_request_code", PhoneVerify)   //phone code request
+	mux.HandleFunc("/phone_validate_code", PhoneVerify2) //phone code validation
+
+	mux.HandleFunc("/company", CompanyData)
+	mux.HandleFunc("/all", All) //get all db data (for admin)
 
 	log.Println("Listening on " + os.Getenv("PORT"))
 	log.Fatalln(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
 }
+
+func CompanyData(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+
+		apikey := r.FormValue("apikey")
+
+		_, ok := Companies[apikey]
+
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if ok {
+
+			Company := Companies[apikey]
+
+			fmt.Fprintln(w, Company.Name)
+			fmt.Fprintln(w, Company.ID)
+
+			fmt.Fprintln(w, Company.APIkey)
+
+			fmt.Fprintln(w, "Users: ")
+
+			for index, user := range Company.Users {
+				fmt.Fprintln(w, index+1, " ", user.Name, " ", user.ID, " ", user.Email, " ", user.EmailVerified, " ", user.Phone, " ", user.PhoneVerified, " ", user.Address.Address1, " ", user.Address.Address2, " ", user.Address.City, " ", user.Address.State, " ", user.Address.Country)
+				fmt.Fprintln(w, "")
+				fmt.Fprintln(w, "---------------------------------------------------------------------------------------------------")
+				fmt.Fprintln(w, "")
+			}
+
+			w.WriteHeader(http.StatusOK)
+		}
+	}
+}
+
+func EmailVerifyCode(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func EmailVerifyRequest(w http.ResponseWriter, r *http.Request) {
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+
+		email := r.FormValue("email")
+		apikey := r.FormValue("apikey")
+
+		_, ok := Companies[apikey]
+
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if ok {
+
+		}
+	}
+}
+
 func All(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
@@ -112,10 +195,17 @@ func All(w http.ResponseWriter, r *http.Request) {
 
 			for apikey, company := range Companies {
 				fmt.Fprintln(w, apikey, " : ", company.Name, " ", company.ID, " ")
-				for _, user := range company.Users {
-					fmt.Fprintln(w, user.Name, " ", user.ID, " ", user.Email)
+				for index, user := range company.Users {
+					fmt.Fprintln(w, index+1, " ", user.Name, " ", user.ID, " ", user.Email, " ", user.EmailVerified, " ", user.Phone, " ", user.PhoneVerified, " ", user.Address.Address1, " ", user.Address.Address2, " ", user.Address.City, " ", user.Address.State, " ", user.Address.Country)
+					fmt.Fprintln(w, "---------------------------------------------------------------------------------------------------")
+
 				}
-				fmt.Fprintln(w, "-----------------------------------------")
+
+				fmt.Fprintln(w, "")
+				fmt.Fprintln(w, "#####################################################################################################################")
+				fmt.Fprintln(w, "#####################################################################################################################")
+
+				fmt.Fprintln(w, "")
 			}
 		}
 
@@ -193,7 +283,7 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Login(w http.ResponseWriter, r *http.Request) {
+func EmailLogin(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		w.WriteHeader(http.StatusBadRequest)
@@ -272,6 +362,16 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		email := r.FormValue("email")
 		pass := r.FormValue("password")
 		name := r.FormValue("name")
+		phone := r.FormValue("phone")
+
+		phoneVerified := r.FormValue("phone_verified") == "true"
+		EmailVerified := r.FormValue("email_verified") == "true"
+
+		add1 := r.FormValue("address1")
+		add2 := r.FormValue("address2")
+		city := r.FormValue("city")
+		state := r.FormValue("state")
+		country := r.FormValue("country")
 		uuid := uuid.NewV4()
 
 		id := uuid.String()
@@ -298,6 +398,13 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 					Email:    email,
 					ID:       id,
 					Password: HashedPass,
+					Address: Address{
+						Address1: add1,
+						Address2: add2,
+						City:     city,
+						Country:  country,
+						State:    state,
+					},
 				})
 
 				GlobalMutex.Lock()
@@ -319,7 +426,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Verify(w http.ResponseWriter, r *http.Request) {
+func PhoneVerify(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 
@@ -386,7 +493,7 @@ func Verify(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func Verify2(w http.ResponseWriter, r *http.Request) {
+func PhoneVerify2(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		w.WriteHeader(http.StatusBadRequest)

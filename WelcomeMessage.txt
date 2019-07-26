@@ -5,32 +5,36 @@ Verifications: Phone, Email, Fingerprint, Iris
 
 1. Register your company:
 POST to /generateAPIkey:
-Parameters: name
-Response: API key, Name, Company ID
+Parameters: name*
+Response: apikey, name, company_id
 Success Response Status: 201 or  208
 Failure Response status: 500
 
 2. User Signup:
 POST to /signup
-Parameters: name, email, password, apikey
+Parameters: apikey*, name, email, email_verified (boolean), password, phone, phone_verfied (boolean), address1, address2, city, state, country
 Success Response status: 201 
 
-3. User Login:
-POST to /login
-Parameters: email, password, apikey
+3. Email Login:
+POST to /email_login
+Parameters: email*, password*, apikey*
 Success Response status: 202
 
-4. Phone Verify:
-POST to /verifyPhone
-Parameters: phone, apikey
-Response: RequestID
+4. Phone Verify / Phone Login:
+POST to /phone_request_code
+Parameters: phone*, apikey*
+Response: request_id
 Success Response Status: 200
 
-POST to /verifyPhone2
-Parameters: reqid, code
+POST to /phone_validate_code
+Parameters: reqid*, code*
 Success Response status: 202
 
-4. Email Verify: COMING SOON
+4. Email Verify:
+POST to /email_verify_request
+Parameters: email*, apikey*
+Response: request_id
+Success Response status: 200
 
 5. Fingerprint Verify: COMING SOON
 
