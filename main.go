@@ -3,8 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-
-	"github.com/Dev-ManavSethi/authenticator/controller"
 )
 
 func init() {
@@ -14,10 +12,10 @@ func init() {
 func main() {
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/login", controller.Login)
-	mux.HandleFunc("/signup", controller.Signup)
-	mux.HandleFunc("/verify", controller.Verify)
-	mux.HandleFunc("/generateAPIkey", controller.GenAPIkey)
+	mux.HandleFunc("/login", Login)
+	mux.HandleFunc("/signup", Signup)
+	mux.HandleFunc("/verify", Verify)
+	mux.HandleFunc("/generateAPIkey", GenAPIkey)
 
 	log.Fatalln(http.ListenAndServe(":5000", mux))
 }
