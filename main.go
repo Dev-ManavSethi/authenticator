@@ -13,6 +13,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/joho/godotenv"
+
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -55,6 +57,13 @@ func init() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Println("Error loading .env", err)
+	} else {
+		log.Println("LOaded .env file")
+	}
+
 	Companies = make(map[string]Company)
 
 	DummyError = nil
@@ -78,8 +87,8 @@ func main() {
 	mux.HandleFunc("/verify", Verify)
 	mux.HandleFunc("/verify2", Verify2)
 
-	log.Println("Listening on 5000")
-	log.Fatalln(http.ListenAndServe(":5000", mux))
+	log.Println("Listening on " + os.Getenv("PORT"))
+	log.Fatalln(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
 }
 
 func GenAPIkey(w http.ResponseWriter, r *http.Request) {
