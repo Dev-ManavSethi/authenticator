@@ -103,46 +103,41 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		uuid, err := uuid.NewV4()
-		if err != nil {
-			log.Println("Error creating uuid", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			id := uuid.String()
-			h := sha256.New()
-			h.Write([]byte(name + "." + id))
+		uuid := uuid.NewV4()
 
-			bytesHash := h.Sum(nil)
-			hashString := hex.EncodeToString(bytesHash)
+		id := uuid.String()
+		h := sha256.New()
+		h.Write([]byte(name + "." + id))
 
-			GlobalMutex.Lock()
-			Companies[hashString] = Company{
-				Name:   name,
-				ID:     id,
-				APIkey: hashString,
-				Users:  []User{},
-			}
+		bytesHash := h.Sum(nil)
+		hashString := hex.EncodeToString(bytesHash)
 
-			GlobalMutex.Unlock()
-
-			err := SaveToDB(Companies)
-			if err != nil {
-				log.Println("Err saving to db", err)
-				w.WriteHeader(http.StatusInternalServerError)
-			}
-
-			log.Println("API key generated for company: " + name + " , id : " + id)
-			fmt.Fprintln(w, "API key: "+hashString)
-			fmt.Fprintln(w, "Name: "+name)
-			fmt.Fprintln(w, "ID: "+id)
-
-			w.WriteHeader(http.StatusOK)
-
-			//save to db file
-
+		GlobalMutex.Lock()
+		Companies[hashString] = Company{
+			Name:   name,
+			ID:     id,
+			APIkey: hashString,
+			Users:  []User{},
 		}
-	}
 
+		GlobalMutex.Unlock()
+
+		err := SaveToDB(Companies)
+		if err != nil {
+			log.Println("Err saving to db", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+
+		log.Println("API key generated for company: " + name + " , id : " + id)
+		fmt.Fprintln(w, "API key: "+hashString)
+		fmt.Fprintln(w, "Name: "+name)
+		fmt.Fprintln(w, "ID: "+id)
+
+		w.WriteHeader(http.StatusOK)
+
+		//save to db file
+
+	}
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
@@ -216,57 +211,51 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		email := r.FormValue("email")
 		pass := r.FormValue("password")
 		name := r.FormValue("name")
-		uuid, err := uuid.NewV4()
-		if err != nil {
-			log.Println("Error craeting user uuid", err)
+		uuid := uuid.NewV4()
 
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			id := uuid.String()
-			apikey := r.FormValue("apikey")
+		id := uuid.String()
+		apikey := r.FormValue("apikey")
 
-			_, ok := Companies[apikey]
-			if !ok {
+		_, ok := Companies[apikey]
+		if !ok {
 
-				w.WriteHeader(http.StatusUnauthorized)
-			}
-			if ok {
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+		if ok {
 
-				Company := Companies[apikey]
+			Company := Companies[apikey]
 
-				HashedPass, err := bcrypt.GenerateFromPassword([]byte(pass), 10)
+			HashedPass, err := bcrypt.GenerateFromPassword([]byte(pass), 10)
+			if err != nil {
+				log.Println("Error craeting hashed password", err)
+
+				w.WriteHeader(http.StatusInternalServerError)
+			} else {
+
+				Company.Users = append(Company.Users, User{
+					Name:     name,
+					Email:    email,
+					ID:       id,
+					Password: HashedPass,
+				})
+
+				GlobalMutex.Lock()
+				Companies[apikey] = Company
+				GlobalMutex.Unlock()
+
+				log.Println("User signed up for company: " + Companies[apikey].Name)
+				//save map to db
+
+				err := SaveToDB(Companies)
 				if err != nil {
-					log.Println("Error craeting hashed password", err)
-
-					w.WriteHeader(http.StatusInternalServerError)
-				} else {
-
-					Company.Users = append(Company.Users, User{
-						Name:     name,
-						Email:    email,
-						ID:       id,
-						Password: HashedPass,
-					})
-
-					GlobalMutex.Lock()
-					Companies[apikey] = Company
-					GlobalMutex.Unlock()
-
-					log.Println("User signed up for company: " + Companies[apikey].Name)
-					//save map to db
-
-					err := SaveToDB(Companies)
-					if err != nil {
-						log.Println(err)
-					}
-
-					w.WriteHeader(http.StatusAccepted)
-
+					log.Println(err)
 				}
+
+				w.WriteHeader(http.StatusAccepted)
+
 			}
 		}
 	}
-
 }
 
 func Verify(w http.ResponseWriter, r *http.Request) {
