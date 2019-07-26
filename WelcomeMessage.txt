@@ -1,0 +1,37 @@
+Welcome to Global Authenticator.
+A tool to authenticate your users.
+Functions: Signup, Login
+Verifications: Phone, Email, Fingerprint, Iris
+
+1. Register your company:
+POST to /generateAPIkey:
+Parameters: name
+Response: API key, Name, Company ID
+Success Response Status: 201 or  208
+Failure Response status: 500
+
+2. User Signup:
+POST to /signup
+Parameters: name, email, password, apikey
+Success Response status: 201 
+
+3. User Login:
+POST to /login
+Parameters: email, password, apikey
+Success Response status: 202
+
+4. Phone Verify:
+POST to /verifyPhone
+Parameters: phone, apikey
+Response: RequestID
+Success Response Status: 200
+
+POST to /verifyPhone2
+Parameters: reqid, code
+Success Response status: 202
+
+4. Email Verify: COMING SOON
+
+5. Fingerprint Verify: COMING SOON
+
+5. Iris Verify: COMING SOON

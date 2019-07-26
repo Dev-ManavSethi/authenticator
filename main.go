@@ -20,9 +20,10 @@ import (
 )
 
 var (
-	Companies   map[string]Company
-	GlobalMutex sync.Mutex
-	DummyError  error
+	Companies      map[string]Company
+	GlobalMutex    sync.Mutex
+	DummyError     error
+	WelcomeMessage string
 )
 
 type (
@@ -57,6 +58,10 @@ func init() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
+	DummyError = nil
+	WelcomeMessage, DummyError = LoadHomeMessage()
+	DummyError = nil
+
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Println("Error loading .env", err)
@@ -81,72 +86,93 @@ func init() {
 func main() {
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", Home)
 	mux.HandleFunc("/generateAPIkey", GenAPIkey)
 	mux.HandleFunc("/signup", Signup)
 	mux.HandleFunc("/login", Login)
-	mux.HandleFunc("/verify", Verify)
-	mux.HandleFunc("/verify2", Verify2)
+	mux.HandleFunc("/verifyPhone", Verify)
+	mux.HandleFunc("/verifyPhone2", Verify2)
 
 	log.Println("Listening on " + os.Getenv("PORT"))
 	log.Fatalln(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
 }
 
+func Home(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodPost {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	fmt.Fprintf(w, "text/plain", WelcomeMessage)
+}
+
 func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 
-	err := r.ParseForm()
-	if err != nil {
-		log.Println("Error parsing form", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if r.Method == http.MethodGet {
+		w.WriteHeader(http.StatusBadRequest)
 	} else {
 
-		name := r.FormValue("name")
-
-		for _, company := range Companies {
-			if company.Name == name {
-
-				w.WriteHeader(http.StatusAlreadyReported)
-				return
-			}
-		}
-
-		uuid := uuid.NewV4()
-
-		id := uuid.String()
-		h := sha256.New()
-		h.Write([]byte(name + "." + id))
-
-		bytesHash := h.Sum(nil)
-		hashString := hex.EncodeToString(bytesHash)
-
-		GlobalMutex.Lock()
-		Companies[hashString] = Company{
-			Name:   name,
-			ID:     id,
-			APIkey: hashString,
-			Users:  []User{},
-		}
-
-		GlobalMutex.Unlock()
-
-		err := SaveToDB(Companies)
+		err := r.ParseForm()
 		if err != nil {
-			log.Println("Err saving to db", err)
+			log.Println("Error parsing form", err)
 			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+
+			name := r.FormValue("name")
+
+			for _, company := range Companies {
+				if company.Name == name {
+
+					w.WriteHeader(http.StatusAlreadyReported)
+					return
+				}
+			}
+
+			uuid := uuid.NewV4()
+
+			id := uuid.String()
+			h := sha256.New()
+			h.Write([]byte(name + "." + id))
+
+			bytesHash := h.Sum(nil)
+			hashString := hex.EncodeToString(bytesHash)
+
+			GlobalMutex.Lock()
+			Companies[hashString] = Company{
+				Name:   name,
+				ID:     id,
+				APIkey: hashString,
+				Users:  []User{},
+			}
+
+			GlobalMutex.Unlock()
+
+			err := SaveToDB(Companies)
+			if err != nil {
+				log.Println("Err saving to db", err)
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+
+			log.Println("API key generated for company: " + name + " , id : " + id)
+			fmt.Fprintln(w, "API key: "+hashString)
+			fmt.Fprintln(w, "Name: "+name)
+			fmt.Fprintln(w, "ID: "+id)
+
+			w.WriteHeader(http.StatusCreated)
+
+			//save to db file
+
 		}
-
-		log.Println("API key generated for company: " + name + " , id : " + id)
-		fmt.Fprintln(w, "API key: "+hashString)
-		fmt.Fprintln(w, "Name: "+name)
-		fmt.Fprintln(w, "ID: "+id)
-
-		w.WriteHeader(http.StatusCreated)
-
-		//save to db file
-
 	}
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodGet {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	err := r.ParseForm()
 	if err != nil {
@@ -206,6 +232,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 func Signup(w http.ResponseWriter, r *http.Request) {
 
+	if r.Method == http.MethodGet {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	err := r.ParseForm()
 	if err != nil {
 		log.Println("Error parsing form ", err)
@@ -263,6 +294,12 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 }
 
 func Verify(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodGet {
+
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	err := r.ParseForm()
 	if err != nil {
@@ -324,6 +361,11 @@ func Verify(w http.ResponseWriter, r *http.Request) {
 }
 
 func Verify2(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodGet {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	err := r.ParseForm()
 	if err != nil {
@@ -419,4 +461,20 @@ func LoadDB() (map[string]Company, error) {
 
 	file.Close()
 	return decodedMap, nil
+}
+
+func LoadHomeMessage() (string, error) {
+
+	file, err := os.OpenFile("WelcomeMessage.txt", os.O_RDONLY, 0655)
+
+	if err != nil {
+		return "", err
+	}
+
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+
+	return string(bytes), nil
 }
