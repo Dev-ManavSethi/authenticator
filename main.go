@@ -312,13 +312,11 @@ func All(w http.ResponseWriter, r *http.Request) {
 				Companies = append(Companies, company)
 			}
 
-			jsonBytes, err := json.Marshal(Companies)
-			if err!=nil{
-				w.WriteHeader(http.StatusInternalServerError)
-			} else{
-				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprintf(w, "", string(jsonBytes))
-				w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(Companies)
+		
+		
 			}
 		}
 
