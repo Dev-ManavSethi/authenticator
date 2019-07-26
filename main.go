@@ -386,7 +386,7 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 
 			response := `{apikey:` + hashString + `name:` + name + `company_id:` + id + `}`
 
-			fmt.Fprintf(w, "application/json", response)
+			fmt.Fprintln(w, response)
 
 			w.WriteHeader(http.StatusCreated)
 
