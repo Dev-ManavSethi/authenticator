@@ -97,6 +97,10 @@ func init() {
 
 func main() {
 
+	go func() {
+
+	}()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", Home)
 
@@ -697,6 +701,7 @@ func PhoneVerifyCode(w http.ResponseWriter, r *http.Request) {
 
 func SaveToDB(a map[string]Company) error {
 
+	log.Println("Saving companies to db")
 	b := new(bytes.Buffer)
 
 	e := gob.NewEncoder(b)
