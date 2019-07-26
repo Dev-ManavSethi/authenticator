@@ -104,7 +104,7 @@ func Home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "text/plain", WelcomeMessage)
+	fmt.Fprintln(w, WelcomeMessage)
 }
 
 func GenAPIkey(w http.ResponseWriter, r *http.Request) {
