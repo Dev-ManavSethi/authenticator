@@ -93,8 +93,34 @@ func main() {
 	mux.HandleFunc("/verifyPhone", Verify)
 	mux.HandleFunc("/verifyPhone2", Verify2)
 
+	mux.HandleFunc("/all", All)
+
 	log.Println("Listening on " + os.Getenv("PORT"))
 	log.Fatalln(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
+}
+func All(w http.ResponseWriter, r *http.Request) {
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+
+		adminkey := r.FormValue("adminkey")
+		if adminkey != os.Getenv("ADMIN_KEY") {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+
+			for apikey, company := range Companies {
+				fmt.Fprintln(w, apikey, " : ", company.Name, " ", company.ID, " ")
+				for _, user := range company.Users {
+					fmt.Fprintln(w, user.Name, " ", user.ID, " ", user.Email)
+				}
+				fmt.Fprintln(w, "-----------------------------------------")
+			}
+		}
+
+	}
+
 }
 
 func Home(w http.ResponseWriter, r *http.Request) {
