@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/Dev-ManavSethi/authenticator/controllers"
@@ -17,4 +18,6 @@ func main() {
 	mux.HandleFunc("/signup", controllers.Signup)
 	mux.HandleFunc("/verify", controllers.Verify)
 	mux.HandleFunc("/generateAPIkey", controllers.GenAPIkey)
+
+	log.Fatalln(http.ListenAndServe(":5000", mux))
 }
