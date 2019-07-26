@@ -100,12 +100,9 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 	} else {
 
 		name := r.FormValue("name")
-		//check if comapny already exists
 
 		for _, company := range Companies {
 			if company.Name == name {
-
-				fmt.Fprintln(w, "Name already exists")
 
 				w.WriteHeader(http.StatusAlreadyReported)
 				return
@@ -142,7 +139,7 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Name: "+name)
 		fmt.Fprintln(w, "ID: "+id)
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusCreated)
 
 		//save to db file
 
@@ -183,7 +180,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 					if err == nil {
-						w.WriteHeader(http.StatusOK)
+						w.WriteHeader(http.StatusAccepted)
 						break
 					}
 					if err != nil {
@@ -200,8 +197,6 @@ func Login(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !ok {
-
-			fmt.Fprintln(w, "Incorrect api key")
 
 			w.WriteHeader(http.StatusUnauthorized)
 		}
@@ -260,7 +255,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 					log.Println(err)
 				}
 
-				w.WriteHeader(http.StatusAccepted)
+				w.WriteHeader(http.StatusCreated)
 
 			}
 		}
@@ -271,7 +266,7 @@ func Verify(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
 	if err != nil {
-		log.Println("Errir parsing form", err)
+		log.Println("Error parsing form", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
@@ -286,15 +281,12 @@ func Verify(w http.ResponseWriter, r *http.Request) {
 			//log.Println(brandname)
 			phoneString := r.FormValue("phone")
 
-			//	phone, err := strconv.Atoi(phoneString)
-
 			//send code to phone
 			url := "https://api.nexmo.com/verify/json?api_key=6d52c704&api_secret=KfFCibpdpshkPpr2&number=" + phoneString + "&brand=" + brandname + "&code_length=4"
 
 			resp, err := http.Get(url)
 			if err != nil {
 				log.Println("Error getting url: "+url, err)
-
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 
@@ -317,14 +309,13 @@ func Verify(w http.ResponseWriter, r *http.Request) {
 						RequestID := Response.RequestID
 						fmt.Fprintln(w, RequestID)
 
-						w.WriteHeader(http.StatusInternalServerError)
+						w.WriteHeader(http.StatusOK)
 
 					}
 
 				}
 			}
 		} else if !ok {
-			fmt.Fprintln(w, "Wrong or nil api key")
 
 			w.WriteHeader(http.StatusUnauthorized)
 		}
@@ -370,12 +361,11 @@ func Verify2(w http.ResponseWriter, r *http.Request) {
 						log.Println("Err unmarshalling", err)
 						w.WriteHeader(http.StatusInternalServerError)
 					} else {
-						w.WriteHeader(http.StatusOK)
+						w.WriteHeader(http.StatusAccepted)
 					}
 				}
 			}
 		} else if !ok {
-			fmt.Fprintln(w, "Wrong or nil API key")
 
 			w.WriteHeader(http.StatusUnauthorized)
 		}
