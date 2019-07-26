@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"crypto/dsa"
@@ -12,7 +12,7 @@ import (
 	"os"
 )
 
-func main() {
+func test() {
 
 	params := new(dsa.Parameters)
 	// see http://golang.org/pkg/crypto/dsa/#ParameterSizes
