@@ -28,22 +28,43 @@ var (
 )
 
 type (
+	AuthToken struct {
+		UserID    string `json:"user_id"`
+		CompanyID string `json:"company_id"`
+		Signature string `json:"signature"`
+	}
+
+	LoginResponse struct {
+		User      User   `json:"user"`
+		AuthToken string `json:"auth_token"`
+	}
+
+	RestAPIresponse struct {
+		StatusCode int `json:"status_code"`
+
+		Error   string      `json:"error"`
+		Data    interface{} `json:"data"`
+		Message string      `json:"message"`
+	}
+
 	Company struct {
-		Name   string `json:"name"`
-		ID     string `json:"id"`
-		APIkey string `json:"api_key"`
-		Users  []User `json:"users"`
+		Name       string   `json:"name"`
+		ID         string   `json:"id"`
+		APIkey     string   `json:"api_key"`
+		Users      []User   `json:"users"`
+		AuthTokens []string `json:"auth_tokens"`
 	}
 
 	User struct {
-		Name          string  `json:"name"`
-		ID            string  `json:"id"`
-		Password      []byte  `json:"password"`
-		Email         string  `json:"email"`
-		Phone         int64   `json:"phone"`
-		PhoneVerified bool    `json:"phone_verified"`
-		EmailVerified bool    `json:"email_verified"`
-		Address       Address `json:"address"`
+		Name          string   `json:"name"`
+		ID            string   `json:"id"`
+		Password      []byte   `json:"password"`
+		Email         string   `json:"email"`
+		Phone         int64    `json:"phone"`
+		PhoneVerified bool     `json:"phone_verified"`
+		EmailVerified bool     `json:"email_verified"`
+		Address       Address  `json:"address"`
+		AuthTokens    []string `json:"auth_tokens"`
 	}
 	Address struct {
 		Address1 string `json:"address1"`
@@ -97,11 +118,8 @@ func init() {
 
 func main() {
 
-	go func() {
-
-	}()
-
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/", Home)
 
 	mux.HandleFunc("/generateAPIkey", GenAPIkey) //signup for company
@@ -112,25 +130,100 @@ func main() {
 	mux.HandleFunc("/email_verify_request", EmailVerifyRequest) //email verify //remaining
 	mux.HandleFunc("/email_verify_code", EmailVerifyCode)       //remaining
 
-	mux.HandleFunc("/phone_request_code", PhoneVerifyRequest) //phone code request
-	mux.HandleFunc("/phone_validate_code", PhoneVerifyCode)   //phone code validation
+	mux.HandleFunc("/phonelogin", PhoneVerifyRequest) //phone code request
+	mux.HandleFunc("/phonelogin2", PhoneVerifyCode)   //phone code validation
 
 	mux.HandleFunc("/email_login", EmailLogin) //email login
-	mux.HandleFunc("/phone_login", PhoneLogin) //email login
+	mux.HandleFunc("/phone_login", PhoneLogin) //phone login
 
 	mux.HandleFunc("/company", CompanyData) //get company data
 	mux.HandleFunc("/user", UserData)       //get user data
 	mux.HandleFunc("/all", All)             //get all db data (for admin)
 
+	mux.HandleFunc("/verifyauth", VerifyAuth)
+
 	log.Println("Listening on " + os.Getenv("PORT"))
 	log.Fatalln(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
 }
 
+func VerifyAuth(w http.ResponseWriter, r *http.Request) {
+
+	var Response RestAPIresponse
+
+	ResponseEncoder := json.NewEncoder(w)
+
+	if r.Method == http.MethodGet {
+		PrepareResponse(&Response, http.StatusBadRequest, "Sending GET request to /verifyAuth is not allowed", nil, "Send POST instead", w, ResponseEncoder)
+
+	} else {
+
+		err := r.ParseForm()
+		if err != nil {
+
+			PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Parsing POST form error", w, ResponseEncoder)
+			return
+
+		} else {
+
+			apikey := r.FormValue("apikey")
+			authtoken := r.FormValue("authtoken")
+
+			_, ok := Companies[apikey]
+			if !ok {
+				PrepareResponse(&Response, http.StatusUnauthorized, "API key is nil or wrong", nil, "Check your API key again", w, ResponseEncoder)
+				return
+			}
+			if ok {
+
+				company_id := Companies[apikey].ID
+
+				var AuthTokenValid bool = false
+
+				for _, user := range Companies[apikey].Users {
+
+					user_id := user.ID
+
+					hash := sha256.New()
+					_, err0 := hash.Write([]byte(user_id + "." + company_id + "." + os.Getenv("PRIVATE_KEY")))
+					if err0 != nil {
+						PrepareResponse(&Response, http.StatusInternalServerError, err0.Error(), nil, "Error creating auth token", w, ResponseEncoder)
+						return
+					}
+
+					hashString := hex.EncodeToString(hash.Sum(nil))
+
+					if hashString != authtoken {
+						continue
+					}
+					if hashString == authtoken {
+
+						AuthTokenValid = true
+						PrepareResponse(&Response, http.StatusAccepted, "", nil, "Valid auth token", w, ResponseEncoder)
+						return
+					}
+
+				}
+
+				if AuthTokenValid == false {
+					PrepareResponse(&Response, http.StatusNotAcceptable, "Invalid auth token", nil, "Invalid auth token", w, ResponseEncoder)
+				}
+			}
+
+		}
+	}
+
+}
+
 func UserData(w http.ResponseWriter, r *http.Request) {
+
+	var Response RestAPIresponse
+
+	ResponseEncoder := json.NewEncoder(w)
 
 	err := r.ParseForm()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Parsing POST form error", w, ResponseEncoder)
+		return
 
 	} else {
 
@@ -139,7 +232,7 @@ func UserData(w http.ResponseWriter, r *http.Request) {
 		_, ok := Companies[apikey]
 
 		if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
+			PrepareResponse(&Response, http.StatusUnauthorized, "Invalid API key", nil, "", w, ResponseEncoder)
 			return
 		}
 		if ok {
@@ -153,7 +246,8 @@ func UserData(w http.ResponseWriter, r *http.Request) {
 
 				phone_int, err := strconv.Atoi(phone)
 				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
+					PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error convering string phone to int", w, ResponseEncoder)
+					return
 				} else {
 
 					Company := Companies[apikey]
@@ -168,17 +262,13 @@ func UserData(w http.ResponseWriter, r *http.Request) {
 					}
 
 					if UserFound {
-						jsonBytes, err := json.Marshal(User)
-						if err != nil {
-							w.WriteHeader(http.StatusInternalServerError)
-						} else {
-							w.WriteHeader(http.StatusFound)
-							fmt.Fprintln(w, string(jsonBytes))
-						}
+
+						PrepareResponse(&Response, http.StatusFound, "", User, "Here is the user data", w, ResponseEncoder)
 
 					}
 					if !UserFound {
-						w.WriteHeader(http.StatusNotFound)
+						PrepareResponse(&Response, http.StatusNotFound, "User not found with given details", nil, "", w, ResponseEncoder)
+
 					}
 
 				}
@@ -190,9 +280,13 @@ func UserData(w http.ResponseWriter, r *http.Request) {
 
 func PhoneLogin(w http.ResponseWriter, r *http.Request) {
 
+	var Response RestAPIresponse
+
+	ResponseEncoder := json.NewEncoder(w)
+
 	err := r.ParseForm()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		PrepareResponse(&Response, http.StatusBadRequest, "Sending GET request is not allowed", nil, "Send POST instead", w, ResponseEncoder)
 
 	} else {
 
@@ -201,7 +295,7 @@ func PhoneLogin(w http.ResponseWriter, r *http.Request) {
 		_, ok := Companies[apikey]
 
 		if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
+			PrepareResponse(&Response, http.StatusUnauthorized, "Invalid API key", nil, "Check your API key", w, ResponseEncoder)
 			return
 		}
 		if ok {
@@ -209,32 +303,43 @@ func PhoneLogin(w http.ResponseWriter, r *http.Request) {
 			phone := r.FormValue("phone")
 			phone_int, err := strconv.Atoi(phone)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+				PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error converting string phone to integer", w, ResponseEncoder)
+
 			} else {
 
 				Company := Companies[apikey]
+
 				var UserFound bool = false
+
 				var User User
 
 				for _, user := range Company.Users {
 					if user.Phone == int64(phone_int) {
 						UserFound = true
 						User = user
+						break
 					}
 				}
 
 				if UserFound {
-					jsonBytes, err := json.Marshal(User)
+
+					hash := sha256.New()
+					_, err := hash.Write([]byte(User.ID + "." + Companies[apikey].ID + "." + os.Getenv("PRIVATE_KEY")))
+
 					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-					} else {
-						w.WriteHeader(http.StatusFound)
-						fmt.Fprintln(w, string(jsonBytes))
+						PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error creating auth token", w, ResponseEncoder)
+						return
 					}
+					LoginResponse := LoginResponse{
+						User:      User,
+						AuthToken: hex.EncodeToString(hash.Sum(nil)),
+					}
+					PrepareResponse(&Response, http.StatusAccepted, "", LoginResponse, "Send POST instead", w, ResponseEncoder)
 
 				}
 				if !UserFound {
-					w.WriteHeader(http.StatusNotFound)
+					PrepareResponse(&Response, http.StatusNotFound, "Could not find user user", nil, "Could nt find user", w, ResponseEncoder)
+
 				}
 
 			}
@@ -243,9 +348,15 @@ func PhoneLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func CompanyData(w http.ResponseWriter, r *http.Request) {
+
+	var Response RestAPIresponse
+
+	ResponseEncoder := json.NewEncoder(w)
+
 	err := r.ParseForm()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		PrepareResponse(&Response, http.StatusBadRequest, "Sending GET request is not allowed", nil, "Send POST instead", w, ResponseEncoder)
+
 	} else {
 
 		apikey := r.FormValue("apikey")
@@ -253,21 +364,16 @@ func CompanyData(w http.ResponseWriter, r *http.Request) {
 		_, ok := Companies[apikey]
 
 		if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
+			PrepareResponse(&Response, http.StatusUnauthorized, "invalid api key", nil, "", w, ResponseEncoder)
+
 			return
 		}
 		if ok {
 
 			Company := Companies[apikey]
 
-			jsonByte, err := json.Marshal(Company)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-			} else {
+			PrepareResponse(&Response, http.StatusOK, "", Company, "Hope you are having a good time in the company!", w, ResponseEncoder)
 
-				fmt.Fprintln(w, string(jsonByte))
-				w.WriteHeader(http.StatusOK)
-			}
 		}
 	}
 }
@@ -335,16 +441,36 @@ func Home(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, WelcomeMessage)
 }
 
+func PrepareResponse(Response *RestAPIresponse, status_code int, err string, data interface{}, message string, w http.ResponseWriter, Encoder *json.Encoder) {
+
+	Response.StatusCode = status_code
+	Response.Error = err
+	Response.Data = data
+	Response.Message = message
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status_code)
+
+	Encoder.Encode(*Response)
+}
+
 func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 
+	var Response RestAPIresponse
+
+	ResponseEncoder := json.NewEncoder(w)
+
 	if r.Method == http.MethodGet {
-		w.WriteHeader(http.StatusBadRequest)
+		PrepareResponse(&Response, http.StatusBadRequest, "Sending GET request to /generateAPIkey is not allowed", nil, "Send POST instead", w, ResponseEncoder)
+
 	} else {
 
 		err := r.ParseForm()
 		if err != nil {
-			log.Println("Error parsing form", err)
-			w.WriteHeader(http.StatusInternalServerError)
+
+			PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Parsing POST form error", w, ResponseEncoder)
+			return
+
 		} else {
 
 			name := r.FormValue("name")
@@ -352,7 +478,8 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 			for _, company := range Companies {
 				if company.Name == name {
 
-					w.WriteHeader(http.StatusAlreadyReported)
+					PrepareResponse(&Response, http.StatusAlreadyReported, err.Error(), nil, "Parsing POST form error", w, ResponseEncoder)
+
 					return
 				}
 			}
@@ -360,8 +487,9 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 			uuid := uuid.NewV4()
 
 			id := uuid.String()
+
 			h := sha256.New()
-			h.Write([]byte(name + "." + id))
+			h.Write([]byte(name + "." + id + "." + os.Getenv("PRIVATE_KEY")))
 
 			bytesHash := h.Sum(nil)
 			hashString := hex.EncodeToString(bytesHash)
@@ -378,15 +506,16 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 
 			err := SaveToDB(Companies)
 			if err != nil {
-				log.Println("Err saving to db", err)
-				w.WriteHeader(http.StatusInternalServerError)
+
+				PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error saving company to database", w, ResponseEncoder)
+
 				return
 			}
 
 			type AllResponse struct {
 				APIkey string `json:"apikey"`
 				Name   string `json:"name"`
-				ID     string `json:"id"`
+				ID     string `json:"company_id"`
 			}
 
 			var a AllResponse
@@ -394,13 +523,7 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 			a.Name = name
 			a.ID = id
 
-			//response := `{apikey:` + hashString + `,name:` + name + `,company_id:` + id + `}`
-
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-
-			json.NewEncoder(w).Encode(a)
-			//save to db file
+			PrepareResponse(&Response, http.StatusCreated, "", a, "Company data created", w, ResponseEncoder)
 
 		}
 	}
@@ -408,15 +531,20 @@ func GenAPIkey(w http.ResponseWriter, r *http.Request) {
 
 func EmailLogin(w http.ResponseWriter, r *http.Request) {
 
+	var Response RestAPIresponse
+
+	ResponseEncoder := json.NewEncoder(w)
+
 	if r.Method == http.MethodGet {
-		w.WriteHeader(http.StatusBadRequest)
+		PrepareResponse(&Response, http.StatusInternalServerError, "Error: Get method not allowed", nil, "Use POST instead", w, ResponseEncoder)
+
 		return
 	}
 
 	err := r.ParseForm()
 	if err != nil {
-		log.Println("Err parsing form", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Err parsing POST form", w, ResponseEncoder)
+
 	} else {
 
 		email := r.FormValue("email")
@@ -430,6 +558,7 @@ func EmailLogin(w http.ResponseWriter, r *http.Request) {
 			Company := Companies[apikey]
 
 			var EmailFound bool = false
+
 			for _, user := range Company.Users {
 
 				if user.Email == email {
@@ -441,26 +570,24 @@ func EmailLogin(w http.ResponseWriter, r *http.Request) {
 
 					if err == bcrypt.ErrMismatchedHashAndPassword {
 
-						w.WriteHeader(http.StatusUnauthorized)
+						PrepareResponse(&Response, http.StatusUnauthorized, err.Error(), nil, "Password not correct", w, ResponseEncoder)
 						break
 					}
 					if err == nil {
 
-						jsonBytes, err := json.Marshal(user)
-						if err != nil {
-							w.WriteHeader(http.StatusInternalServerError)
-							break
-						} else {
+						hash := sha256.New()
+						hash.Write([]byte(user.ID + "." + Companies[apikey].ID + "." + os.Getenv("PRIVATE_KEY")))
 
-							w.WriteHeader(http.StatusFound)
-							fmt.Fprintln(w, string(jsonBytes))
-							break
+						LoginResponse := LoginResponse{
+							User:      user,
+							AuthToken: hex.EncodeToString(hash.Sum(nil)),
 						}
+						PrepareResponse(&Response, http.StatusAccepted, "", LoginResponse, "Email and passwords match", w, ResponseEncoder)
 
 					}
 					if err != nil {
+						PrepareResponse(&Response, http.StatusUnauthorized, err.Error(), nil, "????", w, ResponseEncoder)
 
-						w.WriteHeader(http.StatusUnauthorized)
 						break
 					}
 				}
@@ -468,12 +595,12 @@ func EmailLogin(w http.ResponseWriter, r *http.Request) {
 
 			if !EmailFound {
 
-				w.WriteHeader(http.StatusUnauthorized)
+				PrepareResponse(&Response, http.StatusUnauthorized, "Email incorrect", nil, "Email incorrect", w, ResponseEncoder)
 			}
 		}
 		if !ok {
 
-			w.WriteHeader(http.StatusUnauthorized)
+			PrepareResponse(&Response, http.StatusUnauthorized, "Invalid or nil API key", nil, "Check your API key", w, ResponseEncoder)
 		}
 	}
 
@@ -481,11 +608,13 @@ func EmailLogin(w http.ResponseWriter, r *http.Request) {
 
 func Signup(w http.ResponseWriter, r *http.Request) {
 
+	var Response RestAPIresponse
+	ResponseEncoder := json.NewEncoder(w)
+
 	err := r.ParseForm()
 	if err != nil {
-		log.Println("Error parsing form ", err)
-		w.WriteHeader(http.StatusInternalServerError)
-
+		PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error parsing POST form", w, ResponseEncoder)
+		return
 	} else {
 
 		apikey := r.FormValue("apikey")
@@ -494,45 +623,53 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		pass := r.FormValue("password")
 		name := r.FormValue("name")
 		phone := r.FormValue("phone")
+		phone_int, err := strconv.Atoi(phone)
+		if err != nil {
+		}
 
-		// phoneVerified := r.FormValue("phone_verified") == "true"
-		// EmailVerified := r.FormValue("email_verified") == "true"
+		phoneVerified := r.FormValue("phone_verified") == "true"
+		EmailVerified := r.FormValue("email_verified") == "true"
 
 		add1 := r.FormValue("address1")
 		add2 := r.FormValue("address2")
 		city := r.FormValue("city")
 		state := r.FormValue("state")
 		country := r.FormValue("country")
+
 		uuid := uuid.NewV4()
 
 		id := uuid.String()
 
 		_, ok := Companies[apikey]
 		if !ok {
-			fmt.Fprint(w, "Could not find company of given apikey: "+apikey)
-			w.WriteHeader(http.StatusUnauthorized)
+			PrepareResponse(&Response, http.StatusUnauthorized, "API key is nil or wrong", nil, "Check your API key again", w, ResponseEncoder)
+			return
 		}
 		if ok {
 
 			Company := Companies[apikey]
-			phone_int, err := strconv.Atoi(phone)
-			if err != nil {
-			}
 
 			for _, user := range Company.Users {
 
 				if user.Email == email || user.Phone == int64(phone_int) {
-					w.WriteHeader(http.StatusAlreadyReported)
+
+					PrepareResponse(&Response, http.StatusAlreadyReported, "User already exists with same email or phone", nil, "Same as error", w, ResponseEncoder)
 					return
 				}
+			}
+
+			if pass == "" {
+				PrepareResponse(&Response, http.StatusAlreadyReported, "Warning: Password is empty", nil, "Password is empty", w, ResponseEncoder)
+
 			}
 
 			HashedPass, err := bcrypt.GenerateFromPassword([]byte(pass), 10)
 
 			if err != nil {
-				log.Println("Error craeting hashed password", err)
-
-				w.WriteHeader(http.StatusInternalServerError)
+				PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error creating password hash", w, ResponseEncoder)
+				if pass != "" {
+					return
+				}
 			} else {
 
 				Userr := User{
@@ -547,7 +684,9 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 						Country:  country,
 						State:    state,
 					},
-					Phone: int64(phone_int),
+					Phone:         int64(phone_int),
+					PhoneVerified: phoneVerified,
+					EmailVerified: EmailVerified,
 				}
 
 				Company.Users = append(Company.Users, Userr)
@@ -556,20 +695,28 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 				Companies[apikey] = Company
 				GlobalMutex.Unlock()
 
-				log.Println("User signed up for company: " + Companies[apikey].Name)
 				//save map to db
 
 				err4 := SaveToDB(Companies)
 				if err4 != nil {
-					log.Println(err4)
-					w.WriteHeader(http.StatusInternalServerError)
+					PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error saving data to database", w, ResponseEncoder)
+					return
 
 				} else {
 
-					w.Header().Set("Content-Type", "application/json")
+					hash := sha256.New()
+					_, err := hash.Write([]byte(Userr.ID + "." + Company.ID + "." + os.Getenv("PRIVATE_KEY")))
+					if err != nil {
+						PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "error creating auth token", w, ResponseEncoder)
+						return
+					}
 
-					w.WriteHeader(http.StatusCreated)
-					json.NewEncoder(w).Encode(Userr)
+					LoginResponse := LoginResponse{
+						User:      Userr,
+						AuthToken: hex.EncodeToString(hash.Sum(nil)),
+					}
+
+					PrepareResponse(&Response, http.StatusCreated, "", LoginResponse, "User created and saved to database", w, ResponseEncoder)
 
 				}
 
@@ -580,17 +727,19 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 func PhoneVerifyRequest(w http.ResponseWriter, r *http.Request) {
 
+	var Response RestAPIresponse
+	ResponseEncoder := json.NewEncoder(w)
+
 	if r.Method == http.MethodGet {
 
-		w.WriteHeader(http.StatusBadRequest)
+		PrepareResponse(&Response, http.StatusBadRequest, "GET req not allowed", nil, "Send POST instead", w, ResponseEncoder)
 		return
 	}
 
 	err := r.ParseForm()
 	if err != nil {
-		log.Println("Error parsing form", err)
-
-		w.WriteHeader(http.StatusInternalServerError)
+		PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "err parsing post form", w, ResponseEncoder)
+		return
 	} else {
 
 		apikey := r.FormValue("apikey")
@@ -600,46 +749,79 @@ func PhoneVerifyRequest(w http.ResponseWriter, r *http.Request) {
 		if ok {
 
 			brandname := Companies[apikey].Name
-			//log.Println(brandname)
+
 			phoneString := r.FormValue("phone")
+
+			if len(phoneString) != 12 {
+
+				PrepareResponse(&Response, http.StatusBadRequest, "Length of phone number is not 12", nil, "Phone number format is AB1234567890 where AB is country code", w, ResponseEncoder)
+				return
+			}
+			phone_int, err := strconv.Atoi(phoneString)
+			if err != nil {
+				PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error convering string to int (phone number). Might be in wrong format", w, ResponseEncoder)
+				return
+			}
+
+			//check if phone exists
+
+			var PhoneExists bool = true
+			for _, user := range Companies[apikey].Users {
+
+				if user.Phone == int64(phone_int) {
+					PhoneExists = true
+				}
+			}
+
+			if !PhoneExists {
+				//signup
+
+				var jsonStr = []byte(`{"phone":"` + phoneString + `", "apikey": ` + apikey + `}`)
+				resp, err := http.Post("/sigup", "application/json", bytes.NewBuffer(jsonStr))
+				if err != nil {
+					PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error signing up user (send POST to /signup)", w, ResponseEncoder)
+					return
+				}
+
+				if resp.StatusCode != http.StatusCreated {
+					PrepareResponse(&Response, resp.StatusCode, "Error creating new user", nil, "Error signing up user (different ststus code than 201 from server)", w, ResponseEncoder)
+					return
+				}
+			}
 
 			//send code to phone
 			url := "https://api.nexmo.com/verify/json?api_key=6d52c704&api_secret=KfFCibpdpshkPpr2&number=" + phoneString + "&brand=" + brandname + "&code_length=4"
 
 			resp, err := http.Get(url)
 			if err != nil {
-				log.Println("Error getting url: "+url, err)
-				w.WriteHeader(http.StatusInternalServerError)
+				PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error getting response from SMS server", w, ResponseEncoder)
+				return
 			} else {
 
 				bodyBytes, err := ioutil.ReadAll(resp.Body)
 
 				if err != nil {
-					log.Println("Error convering body to bytes", err)
 
-					w.WriteHeader(http.StatusInternalServerError)
+					PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error reading response body from SMS server", w, ResponseEncoder)
+					return
 				} else {
 
-					var Response NexmoReqResponse
-					err := json.Unmarshal(bodyBytes, &Response)
+					var NexmoResponse NexmoReqResponse
+					err := json.Unmarshal(bodyBytes, &NexmoResponse)
 					if err != nil {
-						log.Println("Error unmarshalling JSON to req rsponse nexmo")
-
-						w.WriteHeader(http.StatusInternalServerError)
+						PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), string(bodyBytes), "Error proccessing response from SMS server", w, ResponseEncoder)
+						return
 					} else {
 
-						RequestID := Response.RequestID
-						fmt.Fprintln(w, RequestID)
-
-						w.WriteHeader(http.StatusOK)
+						PrepareResponse(&Response, http.StatusOK, "", NexmoResponse, "Keep the Request ID. Send POST to /phonelogin2 with req id and code", w, ResponseEncoder)
 
 					}
 
 				}
 			}
-		} else if !ok {
 
-			w.WriteHeader(http.StatusUnauthorized)
+		} else if !ok {
+			PrepareResponse(&Response, http.StatusUnauthorized, "Invalid or nil API key", nil, "Same as error", w, ResponseEncoder)
 		}
 	}
 
@@ -647,17 +829,19 @@ func PhoneVerifyRequest(w http.ResponseWriter, r *http.Request) {
 
 func PhoneVerifyCode(w http.ResponseWriter, r *http.Request) {
 
+	var Response RestAPIresponse
+	ResponseEncoder := json.NewEncoder(w)
+
 	if r.Method == http.MethodGet {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+
+		PrepareResponse(&Response, http.StatusBadRequest, "GET not allowed", nil, "send POST instead", w, ResponseEncoder)
 	}
 
 	err := r.ParseForm()
 	if err != nil {
-		log.Println("Err parsing form ", err)
 
-		w.WriteHeader(http.StatusInternalServerError)
-
+		PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error parsing post form", w, ResponseEncoder)
+		return
 	} else {
 
 		apikey := r.FormValue("apikey")
@@ -666,35 +850,61 @@ func PhoneVerifyCode(w http.ResponseWriter, r *http.Request) {
 		if ok {
 			reqID := r.FormValue("reqid")
 			code := r.FormValue("code")
+			phone := r.FormValue("phone")
+
+			phone_int, err := strconv.ParseInt(phone, 10, 64)
+			if err != nil {
+				PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error converting string to int64. Please check if phone  number format is correct", w, ResponseEncoder)
+				return
+			}
 
 			url := "https://api.nexmo.com/verify/check/json?&api_key=6d52c704&api_secret=KfFCibpdpshkPpr2&request_id=" + reqID + "&code=" + code
 
 			resp, err := http.Get(url)
 			if err != nil {
-				log.Println("Err getting url: ", url, err)
-
-				w.WriteHeader(http.StatusInternalServerError)
+				PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error getting reposne from SMS server", w, ResponseEncoder)
+				return
 			} else {
 				bodyBytes, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					log.Println("Err conv body to bytes", err)
-
-					w.WriteHeader(http.StatusInternalServerError)
+					PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error proccessing body", w, ResponseEncoder)
+					return
 				} else {
 
 					var CodeResp NexmoCodeVerResponse
 					err := json.Unmarshal(bodyBytes, &CodeResp)
 					if err != nil {
-						log.Println("Err unmarshalling", err)
-						w.WriteHeader(http.StatusInternalServerError)
+						PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error marshalling body of response to proper struct", w, ResponseEncoder)
+						return
 					} else {
-						w.WriteHeader(http.StatusAccepted)
+						//find user and send
+						var User User
+						for _, user := range Companies[apikey].Users {
+							if user.Phone == int64(phone_int) {
+								User = user
+							}
+						}
+
+						hash := sha256.New()
+						_, err := hash.Write([]byte(User.ID + "." + Companies[apikey].ID + "." + os.Getenv("PRIVATE_KEY")))
+						if err != nil {
+							PrepareResponse(&Response, http.StatusInternalServerError, err.Error(), nil, "Error creating Auth token", w, ResponseEncoder)
+							return
+
+						}
+
+						var LoginResponse LoginResponse
+						LoginResponse.User = User
+						LoginResponse.AuthToken = hex.EncodeToString(hash.Sum(nil))
+
+						PrepareResponse(&Response, http.StatusAccepted, "", LoginResponse, "Phone Verified successfully", w, ResponseEncoder)
+
 					}
 				}
 			}
 		} else if !ok {
+			PrepareResponse(&Response, http.StatusUnauthorized, "Invalid or nil API key", nil, "", w, ResponseEncoder)
 
-			w.WriteHeader(http.StatusUnauthorized)
 		}
 	}
 }
